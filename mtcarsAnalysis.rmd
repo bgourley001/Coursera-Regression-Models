@@ -1,0 +1,162 @@
+---
+title: "Regression Models - Analysis of Transmission against MPG for the mtcars dataset"
+author: "Bill Gourley"
+date: "November 21, 2015"
+output: pdf_document
+---
+
+## Context
+Explore the relationship between a set of variables and miles per gallon (MPG) (outcome). The following two questions need to be answered:
+  
+* "Is an automatic or manual transmission better for MPG"
+* "Quantify the MPG difference between automatic and manual transmissions"
+
+For this analysis, the primary aim is to describe the regressor relationships from a modelling
+perspective, and not necessarily from a best prediction estimate perspective.
+
+## Executive Summary
+The analysis shows that, for the data available in the `mtcars` dataset, the following statements can be made :
+
+* When no other variables are involved, manual transmission is better for MPG. Cars with automatic transmission achieve, on average, 17.15 MPG with a 95% confidence interval of [14.85,19.44] whereas cars with manual transmission achieve, on average, 24.39 MPG with a 95% confidence interval of [18.49,30.29]. However, this model only explains 36% of the total variation. Analysis is shown in the Appendix.
+
+* When all of the mtcars variables are included in the model and regression diagnostics and model selection are carried out, a model which regresses mpg against transmission (am), horsepower (hp) and weight(wt) explaining 89% of the total variation is achieved. Results indicate that the choice of transmission is statistically insignificant, makes little difference to MPG, and could be left out of the model. The model indicates that, when other variables are accounted for, cars with automatic transmission achieve, on average, 35.5 MPG with a 95% confidence interval of [31.2,39.74] whereas cars with manual transmission achieve, on average, 35.98 MPG with a 95% confidence interval of [29.56,42.39].
+
+Details of the analysis follows. The supporting code can be found in the `mtcarsAnalysis.rmd` file.
+
+## Analysis
+```{r,echo=FALSE,message=FALSE,warning=FALSE}
+library(ggplot2)
+library(car)
+library(gridExtra)
+
+data(mtcars)
+```
+Variables cyl, vs, am, gear and carb have been converted into factors for the analysis. 
+
+```{r,echo=FALSE}
+mtcars$cyl <- as.factor(mtcars$cyl)
+mtcars$vs <- as.factor(mtcars$vs)
+mtcars$am <- as.factor(mtcars$am)
+mtcars$gear <- as.factor(mtcars$gear)
+mtcars$carb <- as.factor(mtcars$carb)
+```
+
+### Exploratory Data Analysis and Model Selection
+Nested models were created and two ANOVA analyses were carried out to identify significant variables to include in the final model. The output from the second analysis can be found in the Appendix as Figure 2.
+
+The p-value for disp indicates that this variable is not significant, see Figure 3a in the Appendix, therefore we can improve the model by removing it. Variables cyl and hp are related, there seems to be 3 distinct groupings as can be seen in Figure 3b in the Appendix. We can therefore simplify the model by replacing cyl + hp with hp. (Note that there is a clear non-linear relationship between mpg and hp, and the model could be improved by using a log transformation of hp. This has not been done in this case in order to simplify the interpretation of the model).
+
+```{r,echo=FALSE}
+#fit a model to plot diagnostics to identify influential observations
+fit15a <- lm(mpg ~ am + hp + wt,mtcars)
+
+```
+
+From the model residual and Q-Q plots shown in the Appendix as Figure 4a, 3 observations are highlighted as influential, `Chrysler Imperial`, `Toyota Corolla`, and `Fiat 128`. The model fit can be improved by removing these observations.
+
+```{r,echo=FALSE}
+#remove rows for high influence dfbetas, Chrysler Imperial, Fiat 128, Toyota Corolla and Lotus Europa
+mtcars.filtered <- mtcars[c(-17,-18,-20),]
+#fit the model from mtcars.filtered
+fit16 <- lm(mpg ~ am + hp + wt,mtcars.filtered)
+```
+The resultant model coefficients and R squared values can be found in the Appendix as Figure 4b.
+The 95% confidence intervals can be found in the Appendix as Figure 4c.
+
+The coefficients of the model variables can be interpreted as follows:
+
+* As it doesn't make sense to have a car with 0 hp and 0 wt, the Intercept, in this case, merely anchors the regression estimates.
+* The coefficient for hp indicates that, for every 100 increase in horsepower, there is a decrease of 2.8 MPG.
+* the coefficient for wt indicates that, for every 1000lb increase in weight, there is a decrease of 3.75 MPG
+
+In the final model, all variables are significant except am. The variable am has been left in the model as this was the primary focus of the questions raised. 
+
+The summary details of the final model are shown in the Appendix as Figure 5.
+
+## Appendix
+
+### Comparison of mpg against am in Isolation
+A boxplot of the comparison can be found in Figure 1 below.
+The coefficients, 95% confidence intervals and R Squared values from `lm(formula = mpg ~ am, data = mtcars)` are as follows :
+```{r, echo=FALSE}
+fit1 <- lm(mpg ~ am, mtcars)
+summary(fit1)$coefficients
+summary(fit1)$r.squared
+confint(fit1)
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=3}
+#boxplot of am against mpg
+g <- ggplot(data = mtcars,aes(x = am, y = mpg)) 
+g <- g + geom_boxplot() + ggtitle("Figure 1 : Boxplot Comparison of mpg ~ am")
+g
+```
+
+
+```{r,echo=FALSE,eval=FALSE}
+# ANOVA Analysis of all model variables
+#nested models
+fit2 <- update(fit1, mpg ~ am + cyl)
+fit3 <- update(fit2, mpg ~ am + cyl + disp)
+fit4 <- update(fit3, mpg ~ am + cyl + disp + hp)
+fit5 <- update(fit4, mpg ~ am + cyl + disp + hp + drat)
+fit6 <- update(fit5, mpg ~ am + cyl + disp + hp + drat + wt)
+fit7 <- update(fit6, mpg ~ am + cyl + disp + hp + drat + wt + qsec)
+fit8 <- update(fit7, mpg ~ am + cyl + disp + hp + drat + wt + qsec + vs)
+fit9 <- update(fit8, mpg ~ am + cyl + disp + hp + drat + wt + qsec + vs + gear)
+fit10 <- update(fit9, mpg ~ am + cyl + disp + hp + drat + wt + qsec + vs + gear + carb)
+
+#perform anova on nested models
+anova(fit1,fit2,fit3,fit4,fit5,fit6,fit7,fit8,fit9,fit10)
+```
+
+#### Figure 2 : ANOVA Analysis 2
+```{r,echo=FALSE}
+#build subset of nested models based on results of anova with fit1, fit2, fit3, fit4 and fit6
+fit11 <- lm(mpg ~ am,mtcars)
+fit12 <- update(fit11,mpg ~ am + cyl,mtcars)
+fit13 <- update(fit12,mpg ~ am + cyl + disp,mtcars)
+fit14 <- update(fit13,mpg ~ am + cyl + disp + hp,mtcars)
+fit15 <- update(fit14,mpg ~ am + cyl + disp + hp + wt,mtcars)
+
+#perform anova
+anova(fit11,fit12,fit13,fit14,fit15)
+```
+
+#### Figure 3a : Model Coefficients and R Squared Values for mpg ~ am + cyl + disp + hp + wt
+```{r,echo=FALSE}
+summary(fit15)$coefficients
+summary(fit15)$r.squared
+```
+
+```{r,echo=FALSE,fig.height=3}
+g2 <- ggplot(mtcars,aes(x=hp,y=mpg,size=cyl,colour=cyl)) + geom_point()
+g2 <- g2 + ggtitle("Figure 3b : Plot of hp against cyl")
+g2
+```
+
+#### Figure 4a : Model Diagnostic Plots for mpg ~ am + hp + wt
+```{r,echo=FALSE}
+par(mfrow=c(2,2))
+plot(fit15a)
+par(mfrow=c(1,1))
+```
+
+#### Figure 4b : Model Coefficients and R Squared Values for mpg ~ am + hp + wt
+```{r,echo=FALSE}
+summary(fit16)$coefficients
+summary(fit16)$r.squared
+```
+
+#### Figure 4c : 95% Confidence Intervals for mpg ~ am + hp + wt
+```{r,echo=FALSE}
+confint(fit16)
+
+```
+
+#### Figure 5 : Model Summary for mpg ~ am + hp + wt
+```{r,echo=FALSE}
+summary(fit16)
+```
+
